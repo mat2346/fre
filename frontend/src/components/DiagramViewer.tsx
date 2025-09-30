@@ -20,6 +20,7 @@ import type { TableEntity } from '../types';
 import { RELATION_TYPES } from '../constants';
 import { useCanvas } from '../context/CanvasContext';
 import { useAuth } from '../context/AuthContext';
+import AISidebar from './AISidebar';
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { relationship: RelationshipEdge };
@@ -51,6 +52,9 @@ export const DiagramViewer = () => {
   const [joinError, setJoinError] = React.useState('');
   const [joinLoading, setJoinLoading] = React.useState(false);
   const [joinCanvasInfo, setJoinCanvasInfo] = React.useState<{name?: string, owner?: string, join_code?: string} | null>(null);
+
+  // Estado para la barra lateral de IA
+  const [showAISidebar, setShowAISidebar] = React.useState(false);
 
   // Cargar diagramas al montar el componente
   useEffect(() => {
@@ -350,18 +354,59 @@ export const DiagramViewer = () => {
     return () => window.removeEventListener('auth:unauthorized', onAuthUnauthorized);
   }, []);
 
+  // Handler para cargar diagrama generado por IA
+  const handleAIDiagramGenerated = (diagramJson: any) => {
+    // Validación básica de estructura
+    if (!diagramJson || typeof diagramJson !== 'object' || !diagramJson.tables || !Array.isArray(diagramJson.tables) || !diagramJson.relations || !Array.isArray(diagramJson.relations)) {
+      alert('El JSON recibido no es válido o no tiene la estructura esperada.');
+      return;
+    }
+    // Validar que cada tabla tenga id, name y attributes
+    for (const table of diagramJson.tables) {
+      if (!table.id || !table.name || !Array.isArray(table.attributes)) {
+        alert('El JSON recibido tiene tablas sin id, name o attributes.');
+        return;
+      }
+    }
+    // Validar que cada relación tenga id, sourceTableId y targetTableId
+    for (const rel of diagramJson.relations) {
+      if (!rel.id || !rel.sourceTableId || !rel.targetTableId) {
+        alert('El JSON recibido tiene relaciones sin id, sourceTableId o targetTableId.');
+        return;
+      }
+    }
+    diagram.loadDiagramData(diagramJson);
+    setShowAISidebar(false);
+  };
+
+  // Handler para validar el diagrama y mostrar resultado
+  const handleValidateDiagram = () => {
+    const errors = diagram.validateDiagram();
+    if (Array.isArray(errors) && errors.length > 0) {
+      alert('Errores de validación:\n' + errors.map((e: any) => e.message || JSON.stringify(e)).join('\n'));
+    } else {
+      alert('¡El diagrama es válido!');
+    }
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', background: '#232323', position: 'fixed', top: 0, left: 0, overflow: 'hidden' }}>
       <TopBar
         isMobile={diagram.isMobile}
         onToggleSidebar={() => diagram.setSidebarVisible(!diagram.sidebarVisible)}
         onExport={handleExport}
-        onValidate={diagram.validateDiagram}
+        onValidate={handleValidateDiagram}
         onSaveProject={handleSaveDiagram}
         onLoadProject={() => setShowCanvasList(true)}
         onLogout={logout}
         onNewProject={handleNewProject}
         onJoinCanvas={handleJoinCanvas}
+        onShowAISidebar={() => setShowAISidebar(true)}
+      />
+      <AISidebar
+        isOpen={showAISidebar}
+        onClose={() => setShowAISidebar(false)}
+        onDiagramGenerated={handleAIDiagramGenerated}
       />
 
       <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>

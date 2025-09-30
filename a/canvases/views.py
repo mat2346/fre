@@ -4,8 +4,13 @@ from .models import Canvas
 from .serializers import CanvasSerializer
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+import os
+import json
+import re
+import google.generativeai as genai
 
 # Create your views here.
 
@@ -73,3 +78,57 @@ class CanvasViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def generate_diagram_ai(request):
+    prompt = request.data.get('prompt')
+    if not prompt:
+        return Response({'error': 'Prompt requerido'}, status=status.HTTP_400_BAD_REQUEST)
+
+    api_key = os.environ.get('GOOGLE_API_KEY') or "AIzaSyDXsyJJqoSVpaIHc4LxnyazCElBNL-1Xho"
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    ejemplo_json = {
+        "id": "diagram-1",
+        "name": "Tienda de Productos",
+        "description": "Modelo generado por IA",
+        "tables": [
+            {
+                "id": "productos",
+                "name": "Producto",
+                "attributes": [
+                    {"name": "id", "type": "Integer", "isPrimaryKey": True},
+                    {"name": "nombre", "type": "String"},
+                    {"name": "precio", "type": "Float"}
+                ],
+                "position": {"x": 100, "y": 100}
+            }
+        ],
+        "relations": [
+            {
+                "id": "rel-1",
+                "sourceTableId": "productos",
+                "targetTableId": "ventas",
+                "relationType": "MANY_TO_MANY"
+            }
+        ],
+        "lastModified": "2025-09-30T00:00:00Z"
+    }
+    full_prompt = f"""
+Crea el modelo de base de datos para: {prompt}
+Devuélvelo en formato JSON exactamente igual a este ejemplo (ajusta los nombres y atributos según corresponda):
+
+{json.dumps(ejemplo_json, ensure_ascii=False, indent=2)}
+"""
+    try:
+        response = model.generate_content(full_prompt)
+        match = re.search(r'```json(.*?)```', response.text, re.DOTALL)
+        if match:
+            json_str = match.group(1).strip()
+        else:
+            json_str = response.text.strip()
+        data = json.loads(json_str)
+        return Response(data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

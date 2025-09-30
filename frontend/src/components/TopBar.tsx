@@ -10,6 +10,7 @@ interface TopBarProps {
   onLogout?: () => void;
   onNewProject?: () => void;
   onJoinCanvas?: (canvas: any) => void;
+  onShowAISidebar?: () => void;
 }
 
 /**
@@ -24,7 +25,8 @@ const TopBar: React.FC<TopBarProps> = ({
   onLoadProject,
   onLogout,
   onNewProject,
-  onJoinCanvas
+  onJoinCanvas,
+  onShowAISidebar
 }) => {
   // Estilo común para botones
   const buttonStyle = {
@@ -126,6 +128,17 @@ const TopBar: React.FC<TopBarProps> = ({
               style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1rem' }}
             >
               Cargar
+            </button>
+          )}
+
+          {/* Botón Copilot AI */}
+          {onShowAISidebar && (
+            <button
+              onClick={onShowAISidebar}
+              title="Copilot AI"
+              style={{ background: '#23272a', color: '#4caf50', border: 'none', borderRadius: 6, padding: '6px 14px', fontWeight: 600, fontSize: '1rem', cursor: 'pointer' }}
+            >
+              Copilot AI
             </button>
           )}
 
