@@ -132,3 +132,27 @@ Devuélvelo en formato JSON exactamente igual a este ejemplo (ajusta los nombres
         return Response(data)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def generate_crud_panel_ai(request):
+    code = request.data.get('code')
+    if not code:
+        return Response({'error': 'Se requiere el código fuente Java.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    api_key = os.environ.get('GOOGLE_API_KEY') or "AIzaSyDXsyJJqoSVpaIHc4LxnyazCElBNL-1Xho"
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    prompt = f"""
+Analiza el siguiente código Java de modelo Spring Boot y genera un JSON que describa los endpoints CRUD y los campos de cada entidad para construir un panel de administración frontend.\nEl resultado debe ser un JSON con la estructura:\n{{\n  \"entities\": [\n    {{\n      \"name\": \"Entidad\",\n      \"fields\": [{{ \"name\": \"campo\", \"type\": \"tipo\" }}],\n      \"endpoints\": [{{ \"method\": \"GET\", \"path\": \/entidad\" }}]\n    }}\n  ]\n}}\nCódigo:\n{code}\n"""
+    try:
+        response = model.generate_content(prompt)
+        match = re.search(r'```json(.*?)```', response.text, re.DOTALL)
+        if match:
+            json_str = match.group(1).strip()
+        else:
+            json_str = response.text.strip()
+        data = json.loads(json_str)
+        return Response(data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

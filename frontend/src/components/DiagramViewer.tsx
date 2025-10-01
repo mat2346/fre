@@ -21,6 +21,7 @@ import { RELATION_TYPES } from '../constants';
 import { useCanvas } from '../context/CanvasContext';
 import { useAuth } from '../context/AuthContext';
 import AISidebar from './AISidebar';
+import CrudPanelAISidebar from './CrudPanelAISidebar';
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { relationship: RelationshipEdge };
@@ -55,6 +56,8 @@ export const DiagramViewer = () => {
 
   // Estado para la barra lateral de IA
   const [showAISidebar, setShowAISidebar] = React.useState(false);
+  const [showCrudAISidebar, setShowCrudAISidebar] = React.useState(false);
+  const [crudPanelJson, setCrudPanelJson] = React.useState<any>(null);
 
   // Cargar diagramas al montar el componente
   useEffect(() => {
@@ -389,6 +392,15 @@ export const DiagramViewer = () => {
     }
   };
 
+  // Handler para cargar el JSON generado por IA para panel CRUD
+  const handleCrudJson = (crudJson: any) => {
+    setCrudPanelJson(crudJson);
+    setShowCrudAISidebar(false);
+    // Aquí podrías mostrar un preview, o generar componentes dinámicamente
+    alert('JSON de panel CRUD recibido. Puedes implementarlo para renderizar un panel visual.');
+    console.log('Panel CRUD generado por IA:', crudJson);
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', background: '#232323', position: 'fixed', top: 0, left: 0, overflow: 'hidden' }}>
       <TopBar
@@ -402,6 +414,18 @@ export const DiagramViewer = () => {
         onNewProject={handleNewProject}
         onJoinCanvas={handleJoinCanvas}
         onShowAISidebar={() => setShowAISidebar(true)}
+      />
+      {/* Botón para abrir la barra lateral de panel CRUD AI */}
+      <button
+        style={{ position: 'fixed', top: 80, right: 24, zIndex: 10012, background: '#23272a', color: '#ff9800', border: 'none', borderRadius: 6, padding: '10px 18px', fontWeight: 600, fontSize: 16, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
+        onClick={() => setShowCrudAISidebar(true)}
+      >
+        Panel CRUD AI
+      </button>
+      <CrudPanelAISidebar
+        isOpen={showCrudAISidebar}
+        onClose={() => setShowCrudAISidebar(false)}
+        onCrudJson={handleCrudJson}
       />
       <AISidebar
         isOpen={showAISidebar}
