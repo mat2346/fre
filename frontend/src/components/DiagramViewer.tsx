@@ -69,7 +69,12 @@ export const DiagramViewer = () => {
     if (currentCanvas) {
       console.log('Canvas cargado:', currentCanvas);
       console.log('Código colaborativo (join_code):', (currentCanvas as any).join_code);
-      diagram.loadDiagramData(currentCanvas);
+      // Asegurar que el join_code se incluya en el diagramData
+      const dataToLoad = {
+        ...currentCanvas,
+        join_code: (currentCanvas as any).join_code
+      };
+      diagram.loadDiagramData(dataToLoad);
       setDiagramName(currentCanvas.name);
       setSavedDiagramId(currentCanvas.id);
     }
@@ -335,8 +340,14 @@ export const DiagramViewer = () => {
   // Handler para cargar diagrama por join_code desde TopBar
   const handleJoinCanvas = (canvas: any) => {
     if (canvas) {
-      // Cargar el diagrama recibido (estructura igual que loadCanvas)
-      diagram.loadDiagramData(canvas.data || canvas);
+      // Cargar el diagrama recibido incluyendo el join_code
+      const dataToLoad = canvas.data || canvas;
+      // Asegurar que el join_code se incluya en el diagramData
+      if (canvas.join_code) {
+        dataToLoad.join_code = canvas.join_code;
+      }
+      console.log('🔗 Cargando canvas con join_code:', dataToLoad.join_code);
+      diagram.loadDiagramData(dataToLoad);
       setDiagramName(canvas.name);
       setSavedDiagramId(canvas.id);
     }

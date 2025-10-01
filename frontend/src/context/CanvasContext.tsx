@@ -67,7 +67,15 @@ export const CanvasProvider = ({ children }: CanvasProviderProps) => {
       if (payload.join_code) {
         localStorage.setItem('join_code', payload.join_code);
       }
-      setCurrentCanvas(payload.data || payload);
+      // Combinar data con join_code del payload
+      const canvasWithCode = {
+        ...(payload.data || payload),
+        join_code: payload.join_code,
+        id: payload.id || (payload.data || payload).id,
+        name: payload.name || (payload.data || payload).name
+      };
+      console.log('📦 Canvas cargado en contexto con join_code:', canvasWithCode.join_code);
+      setCurrentCanvas(canvasWithCode);
       return true;
     } catch (err) {
       console.error('Error loading canvas:', err);

@@ -844,8 +844,14 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
     if (!diagramData?.id) return;
     // Usar join_code como roomId si está disponible, si no fallback al id
     const roomId = diagramData.join_code || `diagram-${diagramData.id}`;
+    console.log('🔗 Conectando a websocket room:', roomId);
     const { ydoc, provider, ymap, awareness } = createCollabRoom(roomId);
     const isApplyingRemoteRef = { current: false };
+
+    // Listener para errores de conexión
+    provider.on('status', (event: any) => {
+      console.log('WebSocket status:', event.status);
+    });
 
     // Inicializar ymap con estado local si está vacío
     if (!ymap.has('data')) {
@@ -877,8 +883,10 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
       if (isApplyingRemoteRef.current) return;
       try {
         ymap.set('data', JSON.parse(JSON.stringify(current)));
-      } catch (e) {}
-    }, 200);
+      } catch (e) {
+        console.error('Error publishing to ymap:', e);
+      }
+    }, 300);
 
     // Suscribirse a cambios locales de diagramData
     const stopLocalWatch = (() => {
@@ -897,13 +905,15 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
     awareness.setLocalStateField('user', { name: localStorage.getItem('username') || 'anon' });
 
     return () => {
+      console.log('🔌 Desconectando websocket room:', roomId);
       stopLocalWatch();
       ymap.unobserve(onRemote);
       provider.disconnect();
       ydoc.destroy();
       publish.cancel();
     };
-  }, [diagramData?.id]);
+    // Solo reconectar si cambia el id o el join_code (no por cada cambio de contenido)
+  }, [diagramData?.id, diagramData?.join_code]);
 
   // Alias para mantener compatibilidad
   const deleteNode = removeNodeById;
