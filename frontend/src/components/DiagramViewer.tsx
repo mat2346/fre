@@ -57,7 +57,7 @@ export const DiagramViewer = () => {
   // Estado para la barra lateral de IA
   const [showAISidebar, setShowAISidebar] = React.useState(false);
   const [showCrudAISidebar, setShowCrudAISidebar] = React.useState(false);
-  const [crudPanelJson, setCrudPanelJson] = React.useState<any>(null);
+  const [, setCrudPanelJson] = React.useState<any>(null);
 
   // Cargar diagramas al montar el componente
   useEffect(() => {
