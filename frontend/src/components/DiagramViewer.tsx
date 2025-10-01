@@ -22,6 +22,7 @@ import { useCanvas } from '../context/CanvasContext';
 import { useAuth } from '../context/AuthContext';
 import AISidebar from './AISidebar';
 import CrudPanelAISidebar from './CrudPanelAISidebar';
+import CollaborationIndicator from './CollaborationIndicator';
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { relationship: RelationshipEdge };
@@ -34,6 +35,7 @@ export const DiagramViewer = () => {
   const { logout } = useAuth();
   // Usar hook que contiene la lógica del diagrama
   const diagram = useDiagram(initialNodes, initialEdges);
+  const { connectedUsers, isCollaborationConnected } = diagram;
  
   // Nuevo estado para el nodo seleccionado
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
@@ -57,7 +59,7 @@ export const DiagramViewer = () => {
   // Estado para la barra lateral de IA
   const [showAISidebar, setShowAISidebar] = React.useState(false);
   const [showCrudAISidebar, setShowCrudAISidebar] = React.useState(false);
-  const [crudPanelJson, setCrudPanelJson] = React.useState<any>(null);
+  const [, setCrudPanelJson] = React.useState<any>(null);
 
   // Cargar diagramas al montar el componente
   useEffect(() => {
@@ -322,7 +324,21 @@ export const DiagramViewer = () => {
       if (res.ok) {
         const canvas = await res.json();
         console.log('Canvas recibido del backend:', canvas);
-        diagram.loadDiagramData(canvas.data);
+        
+        // Crear datos del diagrama con el join_code para conectar al websocket
+        const dataToLoad = canvas.data || {
+          id: canvas.id,
+          name: canvas.name,
+          tables: [],
+          relations: [],
+          lastModified: new Date()
+        };
+        
+        // Asegurar que el join_code se incluya para la colaboración
+        dataToLoad.join_code = canvas.join_code;
+        
+        console.log('🔗 Uniéndose a canvas colaborativo:', dataToLoad.join_code);
+        diagram.loadDiagramData(dataToLoad);
         setDiagramName(canvas.name);
         setSavedDiagramId(canvas.id);
         setJoinCanvasInfo({ name: canvas.name, owner: canvas.owner, join_code: canvas.join_code });
@@ -566,7 +582,8 @@ export const DiagramViewer = () => {
           x={diagram.newTableMenu.x}
           y={diagram.newTableMenu.y}
           onTableNameSubmit={(tableName: string) => {
-            diagram.addNode(tableName);
+            console.log('🎯 NewTableMenu enviando nombre de tabla:', tableName);
+            diagram.createTableAt(tableName);
             diagram.closeAllOverlays();
           }}
           onCancel={diagram.closeAllOverlays}
@@ -901,6 +918,12 @@ export const DiagramViewer = () => {
           </div>
         </div>
       )}
+
+      {/* Indicador de colaboración */}
+      <CollaborationIndicator 
+        connectedUsers={connectedUsers}
+        isConnected={isCollaborationConnected}
+      />
     </div>
   );
 };

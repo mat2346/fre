@@ -7,12 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "collab": "y-websocket-server --port 1234"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.12",
     "axios": "^1.12.2",
     "file-saver": "^2.0.5",
+    "framer-motion": "^12.23.22",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
     "jszip": "^3.10.1",

@@ -6,7 +6,7 @@ import { ATTRIBUTE_TYPES, MOBILE_BREAKPOINT, RELATION_TYPES, } from '../constant
 import ExportUtil from '../utils/ExportUtil';
 import ValidationHelper from '../utils/ValidationHelper';
 import { createCollabRoom } from '../services/collab';
-import debounce from 'lodash.debounce';
+
 
 // Hook que encapsula el estado y la lógica del diagrama (nodos, aristas, menús, modal, etc.)
 export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge[] = []) {
@@ -25,6 +25,16 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
     relations: [],
     lastModified: new Date()
   });
+
+  // Referencias para colaboración en tiempo real
+  const diagramDataRef = React.useRef(diagramData);
+  const isApplyingRemoteGlobalRef = React.useRef(false);
+  const yMapRef = React.useRef<any>(null);
+  
+  // Actualizar la referencia cada vez que cambie diagramData
+  React.useEffect(() => {
+    diagramDataRef.current = diagramData;
+  }, [diagramData]);
 
   // Estados de UI: menús contextuales, modal de atributos, sidebar, etc.
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; nodeId: string | null } | null>(null);
@@ -62,6 +72,10 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
   // Estados para validación (utilizados por la función validateDiagram)
   const [validationErrors, setValidationErrors] = React.useState<ValidationError[]>([]);
   const [showValidationPanel, setShowValidationPanel] = React.useState(false);
+
+  // Estados para colaboración
+  const [connectedUsers, setConnectedUsers] = React.useState<Array<{clientId: number, user: any}>>([]);
+  const [isCollaborationConnected, setIsCollaborationConnected] = React.useState(false);
 
   React.useEffect(() => {
     // Ajusta el estado isMobile cuando cambia el tamaño de ventana
@@ -244,11 +258,28 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
         position: { x: canvasPos.x, y: canvasPos.y }
       };
       
-      setDiagramData(prev => ({
-        ...prev,
-        tables: [...prev.tables, newTable],
-        lastModified: new Date()
-      }));
+      setDiagramData(prev => {
+        const updated = {
+          ...prev,
+          tables: [...prev.tables, newTable],
+          lastModified: new Date()
+        };
+        // Actualizar referencia inmediatamente
+        diagramDataRef.current = updated;
+        console.log('📋 Tabla creada localmente:', newTable.name, 'Total tablas:', updated.tables.length);
+        
+        // Publicar cambios inmediatamente para colaboración en tiempo real
+        console.log('🚀 Intentando publicar cambios de tabla creada...', {
+          hasYMapRef: !!yMapRef.current,
+          isApplyingRemote: isApplyingRemoteGlobalRef.current,
+          updatedTablesCount: updated.tables.length
+        });
+        
+        // Publicar inmediatamente sin setTimeout para ver si funciona
+        publishChanges(updated);
+        
+        return updated;
+      });
       
       setNewTableMenu(null);
       setNewTableName('');
@@ -300,11 +331,25 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
           }
           return table;
         });
-        return {
+        const updated = {
           ...prev,
           tables: updatedTables,
           lastModified: new Date()
         };
+        
+        // Actualizar referencia inmediatamente
+        diagramDataRef.current = updated;
+        console.log('➕ Atributo agregado (handleAddAttribute):', attrName, 'a tabla:', nodeId);
+        
+        // Publicar cambios inmediatamente para colaboración en tiempo real
+        setTimeout(() => {
+          if (yMapRef.current && !isApplyingRemoteGlobalRef.current) {
+            console.log('📤 Publicando desde handleAddAttribute:', updated);
+            yMapRef.current.set('data', JSON.parse(JSON.stringify(updated)));
+          }
+        }, 0);
+        
+        return updated;
       });
     }
 
@@ -396,12 +441,28 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
       } as any;
 
       // Actualizar modelo y estado de nodos/aristas de forma segura
-      setDiagramData(prev => ({
-        ...prev,
-        tables: [...prev.tables, interTable],
-        relations: [...prev.relations, newRelation, relToInter, relInterToTarget],
-        lastModified: new Date()
-      }));
+      setDiagramData(prev => {
+        const updated = {
+          ...prev,
+          tables: [...prev.tables, interTable],
+          relations: [...prev.relations, newRelation, relToInter, relInterToTarget],
+          lastModified: new Date()
+        };
+        
+        // Actualizar referencia inmediatamente
+        diagramDataRef.current = updated;
+        console.log('🔗 Relación Many-to-Many creada:', newRelation.name);
+        
+        // Publicar cambios inmediatamente para colaboración en tiempo real
+        setTimeout(() => {
+          if (yMapRef.current && !isApplyingRemoteGlobalRef.current) {
+            console.log('📤 Publicando desde handleSaveRelation (M2M):', updated);
+            yMapRef.current.set('data', JSON.parse(JSON.stringify(updated)));
+          }
+        }, 0);
+        
+        return updated;
+      });
 
       setNodes(prev => {
         // evitar duplicados por si ya existe un nodo con ese id
@@ -459,12 +520,27 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
       return;
     } else {
       setDiagramData(prev => {
+        let updated;
         if (relation.id) {
           const updatedRelations = prev.relations.map(r => r.id === relation.id ? newRelation : r);
-          return { ...prev, relations: updatedRelations, lastModified: new Date() };
+          updated = { ...prev, relations: updatedRelations, lastModified: new Date() };
         } else {
-          return { ...prev, relations: [...prev.relations, newRelation], lastModified: new Date() };
+          updated = { ...prev, relations: [...prev.relations, newRelation], lastModified: new Date() };
         }
+        
+        // Actualizar referencia inmediatamente
+        diagramDataRef.current = updated;
+        console.log('🔗 Relación creada/actualizada:', newRelation.name || newRelation.id);
+        
+        // Publicar cambios inmediatamente para colaboración en tiempo real
+        setTimeout(() => {
+          if (yMapRef.current && !isApplyingRemoteGlobalRef.current) {
+            console.log('📤 Publicando desde handleSaveRelation (normal):', updated);
+            yMapRef.current.set('data', JSON.parse(JSON.stringify(updated)));
+          }
+        }, 0);
+        
+        return updated;
       });
     }
     
@@ -568,15 +644,30 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
     setNodes(nds => nds.filter(n => n.id !== id));
     
     // Eliminar tabla del modelo de datos
-    setDiagramData(prev => ({
-      ...prev,
-      tables: prev.tables.filter(t => t.id !== id),
-      // Eliminar también relaciones que involucren a esta tabla
-      relations: prev.relations.filter(r => 
-        r.sourceTableId !== id && r.targetTableId !== id
-      ),
-      lastModified: new Date()
-    }));
+    setDiagramData(prev => {
+      const updated = {
+        ...prev,
+        tables: prev.tables.filter(t => t.id !== id),
+        // Eliminar también relaciones que involucren a esta tabla
+        relations: prev.relations.filter(r => 
+          r.sourceTableId !== id && r.targetTableId !== id
+        ),
+        lastModified: new Date()
+      };
+      // Actualizar referencia inmediatamente
+      diagramDataRef.current = updated;
+      console.log('🗑️ Tabla eliminada:', id, 'Total tablas restantes:', updated.tables.length);
+      
+      // Publicar cambios inmediatamente para colaboración en tiempo real
+      setTimeout(() => {
+        if (yMapRef.current && !isApplyingRemoteGlobalRef.current) {
+          console.log('📤 Publicando desde removeNodeById:', updated);
+          yMapRef.current.set('data', JSON.parse(JSON.stringify(updated)));
+        }
+      }, 0);
+      
+      return updated;
+    });
     
     // Eliminar aristas conectadas a este nodo
     setEdges(eds => eds.filter(e => e.source !== id && e.target !== id));
@@ -646,11 +737,25 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
           return table;
         });
         
-        return {
+        const updated = {
           ...prev,
           tables: updatedTables,
           lastModified: new Date()
         };
+        
+        // Actualizar referencia inmediatamente
+        diagramDataRef.current = updated;
+        console.log('🔄 Herencia actualizada para tabla:', selectedNode.id);
+        
+        // Publicar cambios inmediatamente para colaboración en tiempo real
+        setTimeout(() => {
+          if (yMapRef.current && !isApplyingRemoteGlobalRef.current) {
+            console.log('📤 Publicando desde handleSaveInheritance:', updated);
+            yMapRef.current.set('data', JSON.parse(JSON.stringify(updated)));
+          }
+        }, 0);
+        
+        return updated;
       });
     }
     
@@ -677,14 +782,47 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
   };
 
   const addNode = React.useCallback((label: string, position = { x: 100, y: 100 }) => {
+    const nodeId = `node-${Date.now()}`;
     const newNode: Node = {
-      id: `node-${nodes.length + 1}`,
+      id: nodeId,
       type: 'custom',
       position,
       data: { label, attributes: [] }
     };
+    
+    console.log('📋 Creando nodo con addNode:', label);
+    
+    // Actualizar nodos visuales
     setNodes(prevNodes => [...prevNodes, newNode]);
-  }, [nodes.length]);
+    
+    // Actualizar modelo de datos para colaboración
+    const newTable: TableEntity = {
+      id: nodeId,
+      name: label,
+      attributes: [],
+      position: position
+    };
+    
+    setDiagramData(prev => {
+      const updated = {
+        ...prev,
+        tables: [...prev.tables, newTable],
+        lastModified: new Date()
+      };
+      diagramDataRef.current = updated;
+      console.log('📋 Tabla agregada a diagramData con addNode:', label, 'Total:', updated.tables.length);
+      
+      // Publicar cambios inmediatamente para colaboración en tiempo real
+      setTimeout(() => {
+        if (yMapRef.current && !isApplyingRemoteGlobalRef.current) {
+          console.log('📤 Publicando desde addNode:', updated);
+          yMapRef.current.set('data', JSON.parse(JSON.stringify(updated)));
+        }
+      }, 0);
+      
+      return updated;
+    });
+  }, []);
 
 
 
@@ -731,54 +869,57 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
         }
         return table;
       });
-      return {
+      const updated = {
         ...prev,
         tables: updatedTables,
         lastModified: new Date()
       };
+      // Actualizar referencia inmediatamente
+      diagramDataRef.current = updated;
+      console.log('➕ Atributo agregado:', attribute.name, 'a tabla:', nodeId);
+      
+      // Publicar cambios inmediatamente para colaboración en tiempo real
+      setTimeout(() => {
+        if (yMapRef.current && !isApplyingRemoteGlobalRef.current) {
+          console.log('📤 Publicando desde addAttributeToNode:', updated);
+          yMapRef.current.set('data', JSON.parse(JSON.stringify(updated)));
+        }
+      }, 0);
+      
+      return updated;
     });
 
     closeAllOverlays();
   };
 
-  // Cargar datos del diagrama desde un objeto DiagramData
-  const loadDiagramData = React.useCallback((data: DiagramData) => {
-    console.log('Cargando datos del diagrama:', data);
+  // Función para sincronizar nodos y aristas con los datos del diagrama
+  const syncNodesAndEdges = React.useCallback((data: DiagramData) => {
+    console.log('🔄 Sincronizando nodos y aristas con datos:', data);
     
-    // Limpiar estado actual y overlays
-    closeAllOverlays();
-    // Actualizamos el modelo completo primero
-    setDiagramData(data);
-    
-    // Convertir tablas a nodos, preservando propiedades del modelo y mostrando atributos legibles
+    // Convertir tablas a nodos
     const newNodes = (data.tables || []).map(table => ({
       id: table.id,
       type: 'custom',
       data: {
-        // Etiqueta para la UI
         label: table.name,
-        // Atributos en la UI: si vienen objetos los transformamos a strings legibles, si ya son strings los usamos tal cual
         attributes: (table.attributes || []).map(attr => {
           if (!attr) return '';
           if (typeof attr === 'string') return attr;
-          // atributo como objeto
           const a: any = attr;
           return `${a.name}: ${a.type}${a.isPrimaryKey ? ' [PK]' : ''}${a.isForeignKey ? ' [FK]' : ''}`;
         }),
-        // Preservar propiedades avanzadas usadas por la app
         isAbstract: (table as any).isAbstract || false,
         inheritanceType: (table as any).inheritanceType || null,
         discriminatorColumn: (table as any).discriminatorColumn || null,
         discriminatorType: (table as any).discriminatorType || null,
         discriminatorValue: (table as any).discriminatorValue || null,
         parentTable: (table as any).parentTable || null,
-        // Mantener también la referencia a los atributos en forma de objetos para el modelo
         __rawAttributes: table.attributes || []
       },
       position: table.position || { x: 0, y: 0 }
     }));
     
-    // Helper para decidir handles basados en posiciones, evita que todas las aristas queden iguales
+    // Helper para manejos basados en posiciones
     const computeHandles = (sourceId: string, targetId: string) => {
       const sourceNode = newNodes.find(n => n.id === sourceId);
       const targetNode = newNodes.find(n => n.id === targetId);
@@ -792,14 +933,17 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
             sourceHandle = 'right'; targetHandle = 'left';
           } else { sourceHandle = 'left'; targetHandle = 'right'; }
         } else {
-          if ((sourceNode.position.y || 0) < (targetNode.position.y || 0)) { sourceHandle = 'bottom'; targetHandle = 'top'; }
-          else { sourceHandle = 'top'; targetHandle = 'bottom'; }
+          if ((sourceNode.position.y || 0) < (targetNode.position.y || 0)) { 
+            sourceHandle = 'bottom'; targetHandle = 'top'; 
+          } else { 
+            sourceHandle = 'top'; targetHandle = 'bottom'; 
+          }
         }
       }
       return { sourceHandle, targetHandle };
     };
     
-    // Convertir relaciones a aristas preservando metadatos
+    // Convertir relaciones a aristas
     const newEdges = (data.relations || []).map(relation => {
       const handles = computeHandles(relation.sourceTableId, relation.targetTableId);
       return {
@@ -825,44 +969,69 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
     // Aplicar nodos y aristas al estado
     setNodes(newNodes);
     setEdges(newEdges);
-    
-    // Si tenemos instancia de React Flow, ajustar la vista para que se vea el diagrama
-    if (reactFlowInstance && typeof reactFlowInstance.fitView === 'function') {
-      // small timeout para esperar a que React Flow procese los nodos
-      setTimeout(() => {
-        try {
-          reactFlowInstance.fitView({ padding: 0.1 });
-        } catch (err) {
-          console.warn('No se pudo ajustar la vista en React Flow:', err);
-        }
-      }, 50);
+  }, []);
+
+  // Estado para manejar la conexión de colaboración de forma estable
+  const [collaborationRoomId, setCollaborationRoomId] = React.useState<string | null>(null);
+
+  // Efecto para determinar el roomId cuando cambie el diagrama (solo ID o join_code)
+  React.useEffect(() => {
+    if (diagramData?.id) {
+      const roomId = diagramData.join_code || `diagram-${diagramData.id}`;
+      if (roomId !== collaborationRoomId) {
+        console.log('🏠 Cambiando room de colaboración a:', roomId);
+        setCollaborationRoomId(roomId);
+      }
     }
-  }, [reactFlowInstance, closeAllOverlays]);
+  }, [diagramData?.id, diagramData?.join_code, collaborationRoomId]);
 
   // --- COLLABORATION EFFECT ---
   React.useEffect(() => {
-    if (!diagramData?.id) return;
-    // Usar join_code como roomId si está disponible, si no fallback al id
-    const roomId = diagramData.join_code || `diagram-${diagramData.id}`;
-    console.log('🔗 Conectando a websocket room:', roomId);
-    const { ydoc, provider, ymap, awareness } = createCollabRoom(roomId);
-    const isApplyingRemoteRef = { current: false };
+    if (!collaborationRoomId) return;
+    console.log('🔗 Conectando a websocket room:', collaborationRoomId);
+    
+    const { ydoc, provider, ymap, awareness } = createCollabRoom(collaborationRoomId);
+    
+    // Guardar referencia al ymap para uso en otros efectos
+    yMapRef.current = ymap;
+    console.log('📝 yMapRef actualizado, ahora disponible para publicación');
 
     // Listener para errores de conexión
     provider.on('status', (event: any) => {
       console.log('WebSocket status:', event.status);
+      setIsCollaborationConnected(event.status === 'connected');
+    });
+
+    // Listener para cuando se sincroniza completamente
+    provider.on('sync', (isSynced: boolean) => {
+      if (isSynced) {
+        console.log('🔄 Websocket sincronizado, verificando datos remotos...');
+        setTimeout(() => {
+          const remote = ymap.get('data');
+          if (isValidDiagramData(remote)) {
+            isApplyingRemoteGlobalRef.current = true;
+            console.log('🔄 Cargando datos remotos sincronizados:', remote);
+            setDiagramData(remote);
+            syncNodesAndEdges(remote);
+            isApplyingRemoteGlobalRef.current = false;
+          }
+        }, 100);
+      }
     });
 
     // Inicializar ymap con estado local si está vacío
     if (!ymap.has('data')) {
+      console.log('📤 Inicializando ymap con datos locales');
       ymap.set('data', JSON.parse(JSON.stringify(diagramData)));
     } else {
       // Si hay datos remotos, cargar en UI
       const remote = ymap.get('data');
       if (isValidDiagramData(remote)) {
-        isApplyingRemoteRef.current = true;
+        isApplyingRemoteGlobalRef.current = true;
+        console.log('🔄 Cargando datos remotos iniciales:', remote);
         setDiagramData(remote);
-        isApplyingRemoteRef.current = false;
+        syncNodesAndEdges(remote);
+        isApplyingRemoteGlobalRef.current = false;
       }
     }
 
@@ -870,50 +1039,131 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
     const onRemote = () => {
       const remote = ymap.get('data');
       if (!isValidDiagramData(remote)) return;
-      if (isApplyingRemoteRef.current) return;
-      isApplyingRemoteRef.current = true;
+      if (isApplyingRemoteGlobalRef.current) return;
+      
+      // Comparar si realmente hay cambios para evitar loops
+      const currentData = diagramDataRef.current;
+      const remoteStr = JSON.stringify(remote);
+      const currentStr = JSON.stringify(currentData);
+      
+      if (remoteStr === currentStr) {
+        console.log('🔄 Los datos remotos son idénticos a los locales, omitiendo actualización');
+        return;
+      }
+      
+      isApplyingRemoteGlobalRef.current = true;
+      console.log('🔄 Aplicando cambios remotos:', remote);
+      
+      // Actualizar diagramData
       setDiagramData(remote);
-      isApplyingRemoteRef.current = false;
+      
+      // Sincronizar nodos y aristas con los nuevos datos
+      syncNodesAndEdges(remote);
+      
+      isApplyingRemoteGlobalRef.current = false;
     };
+    
     ymap.observe(onRemote);
 
-    // Publicar cambios locales (debounced)
-    const publish = debounce((current: DiagramData) => {
-      if (!isValidDiagramData(current)) return;
-      if (isApplyingRemoteRef.current) return;
-      try {
-        ymap.set('data', JSON.parse(JSON.stringify(current)));
-      } catch (e) {
-        console.error('Error publishing to ymap:', e);
-      }
-    }, 300);
-
-    // Suscribirse a cambios locales de diagramData
-    const stopLocalWatch = (() => {
-      let last = diagramData;
-      const handler = () => {
-        if (diagramData !== last) {
-          last = diagramData;
-          publish(diagramData);
-        }
-      };
-      const id = setInterval(handler, 300);
-      return () => clearInterval(id);
-    })();
-
     // Awareness: compartir presencia
-    awareness.setLocalStateField('user', { name: localStorage.getItem('username') || 'anon' });
+    const username = localStorage.getItem('username') || `Usuario-${Math.random().toString(36).substr(2, 4)}`;
+    awareness.setLocalStateField('user', { 
+      name: username,
+      color: `hsl(${Math.random() * 360}, 70%, 50%)`,
+      joinedAt: Date.now()
+    });
+
+    // Listener para cambios en awareness (usuarios conectados/desconectados)
+    const onAwarenessChange = () => {
+      const states = awareness.getStates();
+      const connectedUsers = Array.from(states.entries()).map(([clientId, state]) => ({
+        clientId,
+        user: state.user || { name: 'Unknown' }
+      }));
+      
+      console.log('👥 Usuarios conectados al room:', connectedUsers.map(u => u.user.name));
+      console.log(`📊 Total de usuarios en el room: ${connectedUsers.length}`);
+      setConnectedUsers(connectedUsers);
+    };
+    
+    awareness.on('change', onAwarenessChange);
+    
+    // Mostrar usuarios inicialmente
+    setTimeout(() => onAwarenessChange(), 100);
 
     return () => {
-      console.log('🔌 Desconectando websocket room:', roomId);
-      stopLocalWatch();
+      console.log('🔌 Desconectando websocket room:', collaborationRoomId);
       ymap.unobserve(onRemote);
+      awareness.off('change', onAwarenessChange);
+      yMapRef.current = null;
       provider.disconnect();
       ydoc.destroy();
-      publish.cancel();
     };
-    // Solo reconectar si cambia el id o el join_code (no por cada cambio de contenido)
-  }, [diagramData?.id, diagramData?.join_code]);
+    // Solo reconectar si cambia el roomId de colaboración
+  }, [collaborationRoomId]);
+
+  // Función para publicar cambios inmediatamente
+  const publishChanges = React.useCallback((data: DiagramData) => {
+    console.log('🔍 publishChanges llamada:', {
+      hasYMapRef: !!yMapRef.current,
+      isApplyingRemote: isApplyingRemoteGlobalRef.current,
+      dataValid: isValidDiagramData(data),
+      tablesCount: data?.tables?.length || 0,
+      dataStructure: {
+        id: data?.id,
+        name: data?.name,
+        hasTablesArray: Array.isArray(data?.tables),
+        hasRelationsArray: Array.isArray(data?.relations)
+      }
+    });
+    
+    if (!yMapRef.current) {
+      console.warn('⚠️ yMapRef.current es null, no se puede publicar');
+      return;
+    }
+    
+    if (isApplyingRemoteGlobalRef.current) {
+      console.log('⏭️ Saltando publicación porque estamos aplicando cambios remotos');
+      return;
+    }
+    
+    try {
+      const dataToPublish = JSON.parse(JSON.stringify(data));
+      console.log('📤 Publicando cambios locales inmediatamente:', dataToPublish);
+      yMapRef.current.set('data', dataToPublish);
+      console.log('✅ Cambios publicados exitosamente');
+    } catch (e) {
+      console.error('❌ Error publishing to ymap:', e);
+    }
+  }, []);
+
+  // Efecto separado para actualizar el contenido del ymap sin reconectar
+  React.useEffect(() => {
+    // Evitar loops cuando estamos aplicando cambios remotos
+    if (isApplyingRemoteGlobalRef.current) {
+      console.log('⏭️ Saltando efecto de publicación - aplicando cambios remotos');
+      return;
+    }
+    
+    console.log('🔄 Efecto de publicación ejecutándose:', {
+      hasYMapRef: !!yMapRef.current,
+      dataValid: isValidDiagramData(diagramData),
+      tablesCount: diagramData?.tables?.length || 0,
+      diagramId: diagramData?.id
+    });
+    
+    // Solo actualizar contenido si hay conexión activa y los cambios son locales
+    if (yMapRef.current && isValidDiagramData(diagramData)) {
+      console.log('✅ Condiciones cumplidas, publicando desde efecto principal');
+      // Publicar inmediatamente para mejor tiempo real
+      publishChanges(diagramData);
+    } else {
+      console.log('❌ Condiciones no cumplidas para publicar desde efecto principal:', {
+        hasYMapRef: !!yMapRef.current,
+        dataValid: isValidDiagramData(diagramData)
+      });
+    }
+  }, [diagramData, publishChanges]);
 
   // Alias para mantener compatibilidad
   const deleteNode = removeNodeById;
@@ -923,6 +1173,25 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
   const configureTableInheritance = () => {
     setShowInheritanceForm(true);
   };
+
+  // Función para cargar datos completos del diagrama
+  const loadDiagramData = React.useCallback((data: DiagramData) => {
+    console.log('Cargando datos del diagrama:', data);
+    
+    // Limpiar estado actual y overlays
+    closeAllOverlays();
+    
+    // Actualizar el modelo completo primero
+    setDiagramData(data);
+    
+    // Sincronizar nodos y aristas
+    syncNodesAndEdges(data);
+    
+    // Si tenemos instancia de React Flow, ajustar la vista para que se vea el diagrama
+    if (reactFlowInstance && typeof reactFlowInstance.fitView === 'function') {
+      setTimeout(() => reactFlowInstance.fitView({ duration: 800 }), 100);
+    }
+  }, [syncNodesAndEdges, closeAllOverlays, reactFlowInstance]);
 
   // Exponer la función
   return {
@@ -988,15 +1257,40 @@ export default function useDiagram(initialNodes: Node[] = [], initialEdges: Edge
     // UI y responsividad
     isMobile,
     sidebarVisible,
-    setSidebarVisible
+    setSidebarVisible,
+
+    // Estados de colaboración
+    connectedUsers,
+    isCollaborationConnected
   };
 }
 
 // Función para validar la forma del objeto DiagramData
 function isValidDiagramData(obj: any): obj is DiagramData {
-  return obj && typeof obj === 'object' &&
-    typeof obj.id === 'string' &&
-    typeof obj.name === 'string' &&
-    Array.isArray(obj.tables) &&
-    Array.isArray(obj.relations);
+  const hasValidId = obj && (typeof obj.id === 'string' || typeof obj.id === 'number');
+  const hasValidName = obj && typeof obj.name === 'string';
+  const hasValidTables = obj && Array.isArray(obj.tables);
+  const hasValidRelations = obj && Array.isArray(obj.relations);
+  
+  const isValid = obj && typeof obj === 'object' &&
+    hasValidId &&
+    hasValidName &&
+    hasValidTables &&
+    hasValidRelations;
+    
+  if (!isValid) {
+    console.log('🔍 Validación de DiagramData falló:', {
+      hasObj: !!obj,
+      hasValidId,
+      hasValidName, 
+      hasValidTables,
+      hasValidRelations,
+      idType: obj ? typeof obj.id : 'undefined',
+      actualObj: obj
+    });
+  } else {
+    console.log('✅ Validación de DiagramData exitosa para:', obj?.name || 'sin nombre');
+  }
+    
+  return isValid;
 }

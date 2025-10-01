@@ -13,10 +13,22 @@ export function createCollabRoom(roomId: string, opts: { url?: string } = {}) {
   // Listeners para debugging
   provider.on('status', ({ status }: { status: string }) => {
     console.log(`📡 WebSocket status para room "${roomId}":`, status);
+    if (status === 'disconnected') {
+      console.warn('⚠️ WebSocket desconectado. Asegúrate de que el servidor esté corriendo con: npm run collab');
+    }
   });
   
   provider.on('sync', (isSynced: boolean) => {
     console.log(`🔄 Sincronización ${isSynced ? 'completada' : 'en progreso'} para room "${roomId}"`);
+  });
+  
+  provider.on('connection-close', () => {
+    console.warn('🔌 Conexión WebSocket cerrada');
+  });
+  
+  provider.on('connection-error', (error: any) => {
+    console.error('❌ Error de conexión WebSocket:', error);
+    console.warn('💡 Solución: Ejecuta "npm run collab" en otra terminal para iniciar el servidor');
   });
   
   return { ydoc, provider, ymap, awareness };
