@@ -86,7 +86,10 @@ def generate_diagram_ai(request):
     if not prompt:
         return Response({'error': 'Prompt requerido'}, status=status.HTTP_400_BAD_REQUEST)
 
-    api_key = os.environ.get('GOOGLE_API_KEY') or "AIzaSyDXsyJJqoSVpaIHc4LxnyazCElBNL-1Xho"
+    api_key = os.environ.get('GOOGLE_API_KEY')
+    if not api_key:
+        return Response({'error': 'GOOGLE_API_KEY no configurada'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-flash')
     ejemplo_json = {
@@ -140,7 +143,10 @@ def generate_crud_panel_ai(request):
     if not code:
         return Response({'error': 'Se requiere el código fuente Java.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    api_key = os.environ.get('GOOGLE_API_KEY') or "AIzaSyDXsyJJqoSVpaIHc4LxnyazCElBNL-1Xho"
+    api_key = os.environ.get('GOOGLE_API_KEY')
+    if not api_key:
+        return Response({'error': 'GOOGLE_API_KEY no configurada'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-flash')
     prompt = f"""

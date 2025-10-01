@@ -1,0 +1,35 @@
+# Archivo .env con credenciales sensibles
+.env
+.env.local
+.env.*.local
+
+# Archivos de Python
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv
+
+# Base de datos local
+db.sqlite3
+*.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db

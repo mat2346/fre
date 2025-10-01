@@ -30,9 +30,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure--4d!u244ov-)@j$63zn+6oxs$nb0-hg()(^i28ktmsu!-gcj7)'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'true').lower() == 'true'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']  # Permite todos los hosts en desarrollo
 
 
 # Application definition
@@ -86,15 +86,11 @@ WSGI_APPLICATION = 'a.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Construir manualmente una URL correctamente escapada para evitar problemas con caracteres especiales
-DB_USER = 'postgres.nynrszgnzyxkpipiqclq'
-DB_PASSWORD = urllib.parse.quote_plus('vYNyo1YfAVQ7T6by')
-DB_HOST = 'aws-1-us-east-2.pooler.supabase.com'
-DB_PORT = '5432'
-DB_NAME = 'postgres'
+# Usar la variable de entorno DATABASE_URL del archivo .env
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# Construir URL segura para dj_database_url
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL no está configurada en las variables de entorno")
 
 DATABASES = {
     'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
@@ -177,16 +173,21 @@ SWAGGER_SETTINGS = {
     },
 }
 
-# Configuración de CORS para permitir solicitudes desde el frontend
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",  # Puerto por defecto de Vite
-    "http://127.0.0.1:5173", 
-]
+# Configuración de CORS desde variables de entorno
+cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*')
 
-CORS_ALLOW_CREDENTIALS = True
+if cors_origins == '*':
+    # Permitir todos los orígenes (solo para desarrollo)
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    # Producción: usar lista específica de orígenes permitidos
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
 
-# Para simplificar el desarrollo, permitir todos los headers y métodos
+# Permitir credenciales (cookies, auth headers)
+CORS_ALLOW_CREDENTIALS = os.environ.get('CORS_ALLOW_CREDENTIALS', 'true').lower() == 'true'
+
+# Permitir todos los headers y métodos necesarios
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
