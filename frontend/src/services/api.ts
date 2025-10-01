@@ -1,9 +1,10 @@
 import axios from 'axios';
 import type { DiagramData } from '../types';
+import { API_BASE_URL } from '../constants';
 
 
 // Crear instancia de axios con configuración base
-const API_URL = 'http://localhost:8000/api';
+const API_URL = `${API_BASE_URL}/api`;
 
 const api = axios.create({
   baseURL: API_URL,

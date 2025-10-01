@@ -1,3 +1,7 @@
+// Configuración de URLs del backend
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://temporary-carolin-nnnnafslsa-b8032478.koyeb.app';
+export const WS_URL = import.meta.env.VITE_WS_URL || 'wss://temporary-carolin-nnnnafslsa-b8032478.koyeb.app';
+
 // Constantes compartidas y tipos simples
 export const ATTRIBUTE_TYPES = [
   // Tipos primitivos y sus wrappers

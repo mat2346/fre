@@ -6,7 +6,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        // En desarrollo local, proxy al backend local
+        // En producción, las peticiones irán directamente a VITE_API_URL
+        target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
       },

@@ -1,9 +1,10 @@
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
+import { WS_URL } from '../constants';
 
 
 export function createCollabRoom(roomId: string, opts: { url?: string } = {}) {
-  const url = opts.url || 'ws://localhost:1234';
+  const url = opts.url || WS_URL;
   console.log('🚀 Creando room de colaboración:', { roomId, url });
   const ydoc = new Y.Doc();
   const provider = new WebsocketProvider(url, roomId, ydoc);
